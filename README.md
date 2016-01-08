@@ -1,10 +1,10 @@
 # IDInteraction Object Tracking Analysis Tools
 
-*Tools and scripts to analysis object tracking data for the IDInteraction project.*
+*Tools and scripts to analyze object tracking data for the IDInteraction project.*
 
 ## Acknowledgements
 
-The IDInteraction Object Tracking Tools were developed in the IDInteraction project, funded by the Engineering and Physical Sciences Research Council, UK through grant agreement number [EP/M017133/1][gow].
+The IDInteraction Object Tracking Analysis Tools were developed in the IDInteraction project, funded by the Engineering and Physical Sciences Research Council, UK through grant agreement number [EP/M017133/1][gow].
 
 ## Licence
 
