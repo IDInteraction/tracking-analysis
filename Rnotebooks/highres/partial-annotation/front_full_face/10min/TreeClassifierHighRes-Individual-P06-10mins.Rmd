@@ -1,0 +1,271 @@
+---
+title: "TreeClassification-HighRes-IndividualUser"
+author: "Aitor Apaolaza"
+date: "12/01/2016"
+output: html_document
+---
+
+*Copyright (c) 2015 The University of Manchester, UK.*
+
+*Licenced under LGPL version 2.1. See LICENCE for details.*
+
+*The IDInteraction Attention Classification was developed in the IDInteraction project, funded by the Engineering and Physical Sciences Research Council, UK through grant agreement number EP/M017133/1.*
+
+*Author: Aitor Apaolaza*
+
+
+##Initialisation and loading data
+```{r, echo=FALSE}
+source("TreeClassifierCodeResources.R")
+installMissingPackages()
+projectFolderPath <- "/home/aitor/Dropbox/UoM/IDInteractionCode/Rnotebooks"
+experimentName <- "dual_screen_free_experiment"
+videoQuality <- "high_quality"
+trackingMode <- "front_full_face"
+
+trainingTimeThreshold <- 10
+
+annotatedCSVFolder <- paste(projectFolderPath,"/resources/",experimentName,"/",videoQuality,"/attention/",sep="")
+trackingCSVFolder <- paste(projectFolderPath,"/resources/",experimentName,"/",videoQuality,"/",trackingMode,"/",sep="")
+participantCodeList <- c("P06")
+```
+
+#Setup for the classification algorithm.
+
+**Folder**: `r projectFolderPath`
+
+**Experiment**: `r experimentName`
+
+**Source Videos**: `r videoQuality`
+
+**Tracking system**: `r trackingMode`
+
+**Using the following list of participants**: `r paste(participantCodeList,collapse=", ")`.
+
+**Using the following timelimit threshold to separate training and testing data**: `r trainingTimeThreshold`.
+
+Data for these participants will be read from the CSV files contained in the following folders:
+
+`r annotatedCSVFolder`
+
+`r trackingCSVFolder`
+
+Loading data for participant `r paste(participantCodeList,collapse=", ")`
+```{r, echo=FALSE}
+
+  globalFeatureDF <<- NA
+  
+  ##Load all participant dataframes.
+  for(participantIndex in participantCodeList){
+    print(paste("Processing participant:",participantIndex))
+    participantCode <<- participantIndex
+    loadAndCreateFeatureDF(projectFolderPath,
+                           annotatedCSVFolder,
+                           trackingCSVFolder)
+    
+    if (is.null(nrow(globalFeatureDF)))
+      globalFeatureDF <<- featureDF
+    else
+      globalFeatureDF <<- rbind(globalFeatureDF,featureDF)
+  }
+  
+  #Once the globalFeatureDF is created, I will create a classifier, and report different features based on measurements of true positives and false positives
+  dataclass = globalFeatureDF
+  
+
+  #splitdata in different training and testing sets, according to the different time thresholds configured in the constant trainingTimeThresholds
+  trainsetclass = dataclass[dataclass$timestampms <= trainingTimeThreshold*60*1000,]
+  testsetclass = dataclass[dataclass$timestampms >= trainingTimeThreshold*60*1000, ]
+```
+
+
+From a total of `r nrow(dataclass)` rows, the first `r trainingTimeThreshold` minutes (`r nrow(trainsetclass)`) will be used for training, and the rest for testing (`r nrow(testsetclass)`).
+
+##Training the tree classifier
+```{r, echo=FALSE}
+#I only use the following package to be able to convert the formula back to text
+library(formula.tools)
+formula = attentionName ~ boxHeight + boxRotation + boxArea + boxWidth + widthHeightRatio + boxYcoordRel#boxYcoord
+```
+
+
+Using the **rpart** library for the following formula: 
+
+**`r as.character(formula)`**
+
+```{r, echo=FALSE}
+  library(rpart)
+
+# dim(dataClass)
+  # dim(trainset)
+  # dim(testset)
+  
+  #build a classificatino model with recursive partitioning trees using the training set
+  #method=anova (regression), method=class (classification)
+  #fit = rpart(attention ~ updatetime + updaterange + silence + instudio + emphasis + explicit + implicit + spark + colourful + shotchanges + audiochanges, method="class", data=trainset)
+  
+  #files with exact times for audio and shot changes (no ranges)
+  #treeclass = rpart(attention ~ updatetime + updaterange + silence + instudio + emphasis + explicit + implicit + spark + colourful + shotchanges + framediffs + audiochanges + shotchangerange + audiochangerange, method="class", data=trainsetclass)
+  #files with exact times for audio and shot changes (no ranges)
+  treeclass = rpart(formula,
+                    method="class", data=trainsetclass)
+  
+```
+
+Resulting model:
+```{r, echo=FALSE}
+  treeclass
+```
+
+From the R manual for the Complexity Parameter Table for an Rpart Fit:
+*The cptable in the fit contains the mean and standard deviation of the errors in the cross-validated prediction against each of the geometric means.*
+
+Matrix of information on the optimal prunings based on a complexity parameter.
+```{r, echo=FALSE}
+  printcp(treeclass) # display the results
+```
+
+Visualisation of the Complexity Parameter Table. *A good choice of cp for pruning is often the leftmost value for which the mean lies below the horizontal line.*
+
+```{r, echo=FALSE}
+
+  plotcp(treeclass) # visualize cross-validation results
+ #summary(treeclass) # detailed summary of splits
+```
+
+  
+
+
+
+##Tree
+
+###Summary of the tree
+```{r, echo=FALSE}
+
+  library(partykit)
+  library(grid)
+  rparty.ctree <- as.party(treeclass)
+  rparty.ctree
+
+```
+
+###Visualisation of the tree
+```{r, echo=FALSE, fig.width=15, fig.height=7, fig.cap="Tree classifier plot"}
+
+  plot(rparty.ctree)  # gives a nicer plot, with error bars
+
+```
+
+##Error metrics analysis
+Confusion matrix from the application of the tree predictor to the testing set of data.
+
+```{r, echo=FALSE}
+
+  #test the model, predict using the testset dataset
+  predclass <- predict(treeclass, newdata = testsetclass, type = "class")
+  predclassprob <- predict(treeclass, newdata = testsetclass, type = "prob")
+  
+  #pred
+  # head(pred)
+  
+  #create a dataframe with the actual class values, predicted class values and estimated probabilities of interest (True)
+  dfpredclass <- data.frame(testsetclass$attentionName, predclass, predclassprob)
+  #
+  #confusion matrix that can then be used to calculate accuracy and other statistics
+  resclass <-table(dfpredclass$testsetclass.attentionName, predclass)
+  print(resclass)
+```
+
+###Error metrics based on prediction of attention to the iPad.
+
+
+```{r, echo=FALSE}
+  ##get TN, FN, TP, FP
+  tp = resclass[1,1]
+  fp = resclass[1,2]
+  fn = resclass[2,1]
+  tn = resclass[2,2]
+
+```
+True negatives: `r tn`
+
+False negatives: `r fn`
+
+True positives: `r tp`
+
+False positives: `r fp`
+
+**Error-rate**: the proportion of the incorrectly classified examples -> (fp+fn)/(tp+tn+fp+tn)
+
+**`r ((fp+fn)/(tp+tn+fp+fn))*100`**
+
+**Accuracy**: the proportion of the correctly classified examples -> (tp+tn)/(tp+tn+fp+tn)
+
+**`r  ((tp+tn)/(tp+tn+fp+fn))*100`**
+
+As the number of instances of the response variable is not balanced (there are many more instances with false than true) the accuracy is not a good indicator. Other cost sensitive measures are reported here. -> cost sensitive measures
+
+**Precision**: positive predicted value (PPV) -> tp/(tp+fp), a measure of exactness
+
+**`r (tp/(tp+fp))*100`**
+
+**Recall/Sensitivity**: true positive recognition rate -> tp/(tp+fn), a measure of completeness
+
+**`r (tp/(tp+fn))*100`**
+
+**Specificity**: true negative recognition rate -> tn/(tn+fp)
+
+**`r (tn/(tn+fp))*100`**
+
+**F measure**: the balance between precision and recall -> 2*tp/(2*tp+fp+fn)
+
+**`r (2*tp/(2*tp+fp+fn))*100`**
+
+
+#ERROR MEASURES INLINE COPY#
+`r paste(participantCodeList,collapse=", ")` &nbsp; **`r ((fp+fn)/(tp+tn+fp+fn))*100`** &nbsp; **`r  ((tp+tn)/(tp+tn+fp+fn))*100`** &nbsp; **`r (tp/(tp+fp))*100`** &nbsp; **`r (tp/(tp+fn))*100`** &nbsp; **`r (tn/(tn+fp))*100`** &nbsp; **`r (2*tp/(2*tp+fp+fn))*100`**
+
+###Error metrics based on prediction of attention to the TV.
+
+
+```{r, echo=FALSE}
+  ##get TN, FN, TP, FP
+  tn = resclass[1,1]
+  fn = resclass[1,2]
+  fp = resclass[2,1]
+  tp = resclass[2,2]
+
+```
+True negatives: `r tn`
+
+False negatives: `r fn`
+
+True positives: `r tp`
+
+False positives: `r fp`
+
+**Error-rate**: the proportion of the incorrectly classified examples -> (fp+fn)/(tp+tn+fp+tn)
+
+**`r ((fp+fn)/(tp+tn+fp+fn))*100`**
+
+**Accuracy**: the proportion of the correctly classified examples -> (tp+tn)/(tp+tn+fp+tn)
+
+**`r  ((tp+tn)/(tp+tn+fp+fn))*100`**
+
+As the number of instances of the response variable is not balanced (there are many more instances with false than true) the accuracy is not a good indicator. Other cost sensitive measures are reported here. -> cost sensitive measures
+
+**Precision**: positive predicted value (PPV) -> tp/(tp+fp), a measure of exactness
+
+**`r (tp/(tp+fp))*100`**
+
+**Recall/Sensitivity**: true positive recognition rate -> tp/(tp+fn), a measure of completeness
+
+**`r (tp/(tp+fn))*100`**
+
+**Specificity**: true negative recognition rate -> tn/(tn+fp)
+
+**`r (tn/(tn+fp))*100`**
+
+**F measure**: the balance between precision and recall -> 2*tp/(2*tp+fp+fn)
+
+**`r (2*tp/(2*tp+fp+fn))*100`**
