@@ -1,41 +1,30 @@
 ---
-title: "TreeClassification-HighRes"
-author: "Aitor Apaolaza"
+title: "TreeClassification-HighQuality"
+author: "Aitor Apaolaza, Robert Haines"
 date: "09/01/2016"
 output: html_document
 ---
 
-*Copyright (c) 2015 The University of Manchester, UK.*
+*Copyright (c) 2015, 2016 The University of Manchester, UK.*
 
 *Licenced under LGPL version 2.1. See LICENCE for details.*
 
 *The IDInteraction Attention Classification was developed in the IDInteraction project, funded by the Engineering and Physical Sciences Research Council, UK through grant agreement number EP/M017133/1.*
 
-*Author: Aitor Apaolaza*
+*Author: Aitor Apaolaza, Robert Haines*
 
 ##Initialisation and loading data
 ```{r, echo=FALSE}
 source("TreeClassifierCodeResources.R")
-installMissingPackages()
-projectFolderPath <- "/home/aitor/Dropbox/UoM/IDInteractionCode/Rnotebooks"
-experimentName <- "dual_screen_free_experiment"
-videoQuality <- "high_quality"
-trackingMode <- "front_full_face"
 
-annotatedCSVFolder <- paste(projectFolderPath,"/resources/",experimentName,"/",videoQuality,"/attention/",sep="")
-trackingCSVFolder <- paste(projectFolderPath,"/resources/",experimentName,"/",videoQuality,"/",trackingMode,"/",sep="")
+projectFolderPath <- "/home/docker/data/"
+annotatedCSVFolder <- paste(projectFolderPath, "attention/", sep="")
+trackingCSVFolder <- paste(projectFolderPath, "tracking/", sep="")
+outputPath <- paste(projectFolderPath, "output/", sep="")
 participantCodeList <- c("P01","P03","P04","P05","P06","P08","P09","P10","P12")
 ```
 
 #Setup for the classification algorithm.
-
-**Folder**: `r projectFolderPath`
-
-**Experiment**: `r experimentName`
-
-**Source Videos**: `r videoQuality`
-
-**Tracking system**: `r trackingMode`
 
 **Using the following list of participants**: `r paste(participantCodeList,collapse=", ")`.
 
@@ -49,21 +38,21 @@ Loading data
 ```{r, echo=FALSE}
 
   globalFeatureDF <<- NA
-  
+
   ##Load all participant dataframes.
   for(participantIndex in participantCodeList){
     print(paste("Processing participant:",participantIndex))
     participantCode <<- participantIndex
-    loadAndCreateFeatureDF(projectFolderPath,
+    loadAndCreateFeatureDF(outputPath,
                            annotatedCSVFolder,
                            trackingCSVFolder)
-    
+
     if (is.null(nrow(globalFeatureDF)))
       globalFeatureDF <<- featureDF
     else
       globalFeatureDF <<- rbind(globalFeatureDF,featureDF)
   }
-  
+
   #Once the globalFeatureDF is created, I will create a classifier, and report different features based on measurements of true positives and false positives
   dataclass = globalFeatureDF
   #split 2/3 of the data into the training dataset and 1/3 of the data into the testing data set
@@ -84,7 +73,7 @@ formula = attentionName ~ boxHeight + boxRotation + boxArea + boxWidth + widthHe
 ```
 
 
-Using the **rpart** library for the following formula: 
+Using the **rpart** library for the following formula:
 
 **`r as.character(formula)`**
 
@@ -94,17 +83,17 @@ Using the **rpart** library for the following formula:
 # dim(dataClass)
   # dim(trainset)
   # dim(testset)
-  
+
   #build a classificatino model with recursive partitioning trees using the training set
   #method=anova (regression), method=class (classification)
   #fit = rpart(attention ~ updatetime + updaterange + silence + instudio + emphasis + explicit + implicit + spark + colourful + shotchanges + audiochanges, method="class", data=trainset)
-  
+
   #files with exact times for audio and shot changes (no ranges)
   #treeclass = rpart(attention ~ updatetime + updaterange + silence + instudio + emphasis + explicit + implicit + spark + colourful + shotchanges + framediffs + audiochanges + shotchangerange + audiochangerange, method="class", data=trainsetclass)
   #files with exact times for audio and shot changes (no ranges)
   treeclass = rpart(formula,
                     method="class", data=trainsetclass)
-  
+
 ```
 
 Resulting model:
@@ -128,7 +117,7 @@ Visualisation of the Complexity Parameter Table. *A good choice of cp for prunin
  #summary(treeclass) # detailed summary of splits
 ```
 
-  
+
 
 
 
@@ -159,10 +148,10 @@ Confusion matrix from the application of the tree predictor to the testing set o
   #test the model, predict using the testset dataset
   predclass <- predict(treeclass, newdata = testsetclass, type = "class")
   predclassprob <- predict(treeclass, newdata = testsetclass, type = "prob")
-  
+
   #pred
   # head(pred)
-  
+
   #create a dataframe with the actual class values, predicted class values and estimated probabilities of interest (True)
   dfpredclass <- data.frame(testsetclass$attentionName, predclass, predclassprob)
   #
