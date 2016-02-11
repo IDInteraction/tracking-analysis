@@ -21,6 +21,7 @@ source("TreeClassifierCodeResources.R")
 projectFolderPath <- "/home/docker/data/"
 annotatedCSVFolder <- paste(projectFolderPath, "attention/", sep="")
 trackingCSVFolder <- paste(projectFolderPath, "tracking/", sep="")
+outputPath <- paste(projectFolderPath, "output/", sep="")
 participantCodeList <- c("P01","P03","P04","P05","P06","P08","P09","P10","P12")
 ```
 
@@ -45,7 +46,7 @@ Loading data
   for(participantIndex in participantCodeList){
     print(paste("Processing participant:",participantIndex))
     participantCode <<- participantIndex
-    loadAndCreateFeatureDF(projectFolderPath,
+    loadAndCreateFeatureDF(outputPath,
                            annotatedCSVFolder,
                            trackingCSVFolder)
 

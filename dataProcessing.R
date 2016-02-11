@@ -50,7 +50,7 @@ loadAndCreateFeatureDF <- function(){
   loadCSVFilesForParticipant()
   combineCSVsToDF()
   createFeatureDF()
-  write.csv(file=paste(projectFolderPath,"/featureDF",participantCode,".csv",sep=""), x=featureDF)
+  write.csv(file=paste(outputPath,"/featureDF",participantCode,".csv",sep=""), x=featureDF)
 }
 
 participantLoop <-function(){
@@ -212,7 +212,7 @@ treeClassifier_6Features <- function(){
   print(paste("START of treeClassifier_6Features()"))
 
   #Output folder of the plots
-  folderPath = paste(projectFolderPath,"/Resources/Classifiers_6Features/",sep="")
+  folderPath = paste(outputPath,"/Resources/Classifiers_6Features/",sep="")
   width=1.5
   height=0.75
 
